@@ -1,0 +1,7 @@
+/* You can add custom styles here if needed that aren't easily covered by Tailwind */
+
+/* Example for table borders */
+.min-w-full th,
+.min-w-full td {
+    border-bottom: 1px solid #e5e7eb; /* Tailwind's gray-200 */
+}
