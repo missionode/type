@@ -3,6 +3,8 @@ let canvas;
 let displaySize;
 let faceDetectionInterval;
 let stream; // To hold the MediaStream object for stopping it
+let currentFacingMode = 'user'; // 'user' for front camera, 'environment' for back camera
+let availableCameras = []; // To store available video input devices
 
 // Function to redirect to the Scan Result page (common function)
 function redirectToScanResult(dataId = null) {
@@ -46,6 +48,7 @@ async function saveResearchData(data) {
         const store = transaction.objectStore('research_data');
 
         data.timestamp = new Date().toISOString(); // Add timestamp
+        data.type = 'scan'; // Add type for dashboard analytics
 
         const request = store.add(data); // Add the data
 
@@ -73,10 +76,11 @@ async function loadFaceApiModels() {
     const statusMessage = document.getElementById('scanStatusMessage');
     statusMessage.textContent = 'Loading face detection models...';
     try {
-        // Load the same models as in upload_face for consistency
-        await faceapi.nets.tinyFaceDetector.loadFromUri('../../models'); // Adjust path as needed
-        await faceapi.nets.faceLandmark68Net.loadFromUri('../../models');
-        await faceapi.nets.faceRecognitionNet.loadFromUri('../../models');
+        await Promise.all([
+            faceapi.nets.tinyFaceDetector.loadFromUri('../../models'), // Adjust path as needed
+            faceapi.nets.faceLandmark68Net.loadFromUri('../../models'),
+            faceapi.nets.faceRecognitionNet.loadFromUri('../../models')
+        ]);
         statusMessage.textContent = 'Models loaded. Starting camera...';
         console.log('Face-API.js models loaded successfully.');
     } catch (error) {
@@ -86,33 +90,89 @@ async function loadFaceApiModels() {
     }
 }
 
-// Function to start the camera stream
-async function startCamera() {
-    video = document.getElementById('videoElement');
-    const statusMessage = document.getElementById('scanStatusMessage');
+// Function to enumerate cameras and show/hide switch button
+async function checkCameraDevices() {
+    if (!navigator.mediaDevices || !navigator.mediaDevices.enumerateDevices) {
+        console.warn("enumerateDevices() not supported.");
+        return;
+    }
     try {
-        // Request access to the user's camera
-        stream = await navigator.mediaDevices.getUserMedia({ video: true });
+        const devices = await navigator.mediaDevices.enumerateDevices();
+        availableCameras = devices.filter(device => device.kind === 'videoinput');
+        console.log("Available cameras:", availableCameras.length, availableCameras);
+
+        if (availableCameras.length > 1) {
+            document.getElementById('switchCameraButton').classList.remove('hidden');
+        } else {
+            document.getElementById('switchCameraButton').classList.add('hidden');
+        }
+    } catch (err) {
+        console.error("Error enumerating devices:", err);
+    }
+}
+
+// Function to start the camera stream
+async function startCamera(facingMode = currentFacingMode) {
+    video = document.getElementById('videoElement');
+    canvas = document.getElementById('overlayCanvas');
+    const statusMessage = document.getElementById('scanStatusMessage');
+
+    // Stop any existing stream first
+    if (stream) {
+        stopCamera();
+    }
+
+    statusMessage.textContent = `Camera status: Starting with ${facingMode} camera...`;
+
+    try {
+        const constraints = { video: { facingMode: facingMode } };
+        stream = await navigator.mediaDevices.getUserMedia(constraints);
         video.srcObject = stream;
 
         // Wait for the video to load metadata to get its dimensions
-        await new Promise(resolve => video.onloadedmetadata = resolve);
+        await new Promise(resolve => {
+            video.onloadedmetadata = () => {
+                displaySize = { width: video.videoWidth, height: video.videoHeight };
+                // Fallback for cases where videoWidth/Height are 0 on load or not immediately available
+                if (displaySize.width === 0 || displaySize.height === 0) {
+                    displaySize = { width: video.offsetWidth, height: video.offsetHeight };
+                    if (displaySize.width === 0 || displaySize.height === 0) {
+                        console.warn("Could not determine video dimensions from metadata or offset. Using default 640x480 for canvas.");
+                        displaySize = { width: 640, height: 480 };
+                    }
+                }
+                faceapi.matchDimensions(canvas, displaySize);
 
-        canvas = document.getElementById('overlayCanvas');
-        displaySize = { width: video.videoWidth, height: video.videoHeight };
-        faceapi.matchDimensions(canvas, displaySize);
+                // Set canvas size to match video's *displayed* size
+                canvas.style.width = video.offsetWidth + 'px';
+                canvas.style.height = video.offsetHeight + 'px';
+                resolve();
+            };
+            // If video already loaded metadata (e.g. if startCamera was called multiple times before re-attaching metadata event)
+            if (video.readyState >= 2) { // HAVE_CURRENT_DATA
+                video.onloadedmetadata(); // Call immediately
+            }
+        });
+
 
         // Start detecting faces once video is playing
         video.addEventListener('play', () => {
             statusMessage.textContent = 'Camera active. Looking for faces...';
             document.getElementById('captureScanBtn').disabled = false; // Enable capture button
+            // Clear any previous interval to prevent multiple running instances
+            if (faceDetectionInterval) {
+                clearInterval(faceDetectionInterval);
+            }
             faceDetectionInterval = setInterval(detectFace, 100); // Detect every 100ms
-        });
+        }, { once: true }); // Use once: true to prevent multiple listeners on play
+
 
     } catch (err) {
-        statusMessage.textContent = `Error accessing camera: ${err.name} - ${err.message}`;
+        statusMessage.textContent = `Error accessing camera: ${err.name} - ${err.message}. Please allow camera access.`;
         console.error("Error accessing camera:", err);
         alert("Could not access camera. Please ensure you have a webcam and granted permissions.");
+        document.getElementById('captureScanBtn').disabled = true;
+        document.getElementById('switchCameraButton').classList.add('hidden'); // Hide switch button if camera fails
     }
 }
 
@@ -122,29 +182,48 @@ function stopCamera() {
         stream.getTracks().forEach(track => track.stop());
         video.srcObject = null;
         clearInterval(faceDetectionInterval);
+        faceDetectionInterval = null; // Clear interval ID
         document.getElementById('captureScanBtn').disabled = true;
         document.getElementById('scanStatusMessage').textContent = 'Camera stopped.';
-        console.log('Camera stream stopped.');
+        // Clear canvas when camera stops
+        const context = canvas.getContext('2d');
+        context.clearRect(0, 0, canvas.width, canvas.height);
+        console.log('Camera stream stopped and canvas cleared.');
     }
+}
+
+// Function to switch camera
+function switchCamera() {
+    // Toggle facing mode
+    currentFacingMode = (currentFacingMode === 'user') ? 'environment' : 'user';
+    console.log(`Switching camera to: ${currentFacingMode}`);
+    // Restart webcam with the new facing mode
+    startCamera(currentFacingMode);
 }
 
 // Function to detect faces continuously
 async function detectFace() {
-    if (!video || video.paused || video.ended) {
-        return clearInterval(faceDetectionInterval);
+    if (!video || video.paused || video.ended || !displaySize || displaySize.width === 0 || !video.srcObject) {
+        return; // Do not proceed if video is not ready or dimensions are invalid
     }
+
+    const context = canvas.getContext('2d');
+    context.clearRect(0, 0, canvas.width, canvas.height); // Clear previous drawings
+
+    // Draw the video frame onto the canvas first (for combined visual)
+    if (video.readyState === video.HAVE_ENOUGH_DATA) {
+        context.drawImage(video, 0, 0, canvas.width, canvas.height);
+    }
+
 
     const detections = await faceapi.detectSingleFace(video, new faceapi.TinyFaceDetectorOptions())
                                     .withFaceLandmarks()
                                     .withFaceDescriptor();
 
-    const context = canvas.getContext('2d');
-    context.clearRect(0, 0, canvas.width, canvas.height); // Clear previous drawings
-
     if (detections) {
         document.getElementById('scanStatusMessage').textContent = 'Face detected! Ready to capture.';
         const resizedDetections = faceapi.resizeResults(detections, displaySize);
-        // Draw bounding box and landmarks
+        // Draw bounding box and landmarks on top of the video frame
         faceapi.draw.drawDetections(canvas, resizedDetections);
         faceapi.draw.drawFaceLandmarks(canvas, resizedDetections);
     } else {
@@ -157,6 +236,7 @@ async function handleCaptureScan() {
     const statusMessage = document.getElementById('scanStatusMessage');
     statusMessage.textContent = 'Capturing and processing scan...';
     clearInterval(faceDetectionInterval); // Stop continuous detection
+    faceDetectionInterval = null; // Clear interval ID
 
     // Take a snapshot from the video stream
     const tempCanvas = faceapi.createCanvasFromMedia(video);
@@ -170,8 +250,6 @@ async function handleCaptureScan() {
             descriptor: Array.from(detections.descriptor),
             landmarks: detections.landmarks.positions.map(p => ({ x: p.x, y: p.y })),
             detection: detections.detection.box,
-            // You can also save the image itself if needed, but descriptor is key
-            // imageUrl: tempCanvas.toDataURL('image/jpeg') // Example: save as base64 image
         };
         try {
             const newRecordId = await saveResearchData(faceData);
@@ -180,13 +258,15 @@ async function handleCaptureScan() {
         } catch (error) {
             statusMessage.textContent = `Failed to save scan: ${error.message}`;
             console.error("Failed to save scan:", error);
-            // Optionally restart detection or allow re-capture
+            // If save fails, re-enable capture button and resume detection
+            document.getElementById('captureScanBtn').disabled = false;
             faceDetectionInterval = setInterval(detectFace, 100);
         }
     } else {
         statusMessage.textContent = 'No face detected at the moment of capture. Try again.';
         console.warn('No face detected at capture.');
-        // If no face, resume detection
+        // If no face, re-enable capture button and resume detection
+        document.getElementById('captureScanBtn').disabled = false;
         faceDetectionInterval = setInterval(detectFace, 100);
     }
 }
@@ -196,15 +276,17 @@ async function handleCaptureScan() {
 function attachEventListeners() {
     document.getElementById('captureScanBtn').addEventListener('click', handleCaptureScan);
     document.getElementById('stopScanBtn').addEventListener('click', stopCamera);
+    document.getElementById('switchCameraButton').addEventListener('click', switchCamera); // NEW: Switch Camera listener
 }
 
-// //# allFunctionsCalledOnLoad
+// Call functions on load
 document.addEventListener('DOMContentLoaded', async () => {
     attachEventListeners();
     try {
         await loadFaceApiModels();
         await startCamera();
+        await checkCameraDevices(); // Check available cameras after starting the first camera
     } catch (error) {
-        // Errors handled in respective functions
+        // Errors are typically handled and displayed by individual functions
     }
 });

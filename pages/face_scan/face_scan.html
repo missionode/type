@@ -23,12 +23,17 @@
 
             <p id="scanStatusMessage" class="mt-4 text-sm text-center text-gray-600">Loading camera and models...</p>
 
-            <button id="captureScanBtn" class="mt-6 bg-blue-500 hover:bg-blue-600 text-white font-semibold py-3 px-6 rounded-lg transition duration-300 ease-in-out disabled:opacity-50 disabled:cursor-not-allowed" disabled>
-                Capture Scan
-            </button>
-            <button id="stopScanBtn" class="mt-2 bg-red-500 hover:bg-red-600 text-white font-semibold py-2 px-4 rounded-lg transition duration-300 ease-in-out">
-                Stop Scan
-            </button>
+            <div class="flex flex-col sm:flex-row justify-center items-center mt-6 w-full">
+                <button id="captureScanBtn" class="w-full sm:w-auto bg-blue-500 hover:bg-blue-600 text-white font-semibold py-3 px-6 rounded-lg transition duration-300 ease-in-out disabled:opacity-50 disabled:cursor-not-allowed mb-2 sm:mb-0 sm:mr-2" disabled>
+                    Capture Scan
+                </button>
+                <button id="stopScanBtn" class="w-full sm:w-auto bg-red-500 hover:bg-red-600 text-white font-semibold py-2 px-4 rounded-lg transition duration-300 ease-in-out mb-2 sm:mb-0 sm:mr-2">
+                    Stop Scan
+                </button>
+                <button id="switchCameraButton" class="w-full sm:w-auto bg-gray-600 hover:bg-gray-700 text-white font-semibold py-2 px-4 rounded-lg transition duration-300 ease-in-out hidden">
+                    Switch Camera
+                </button>
+            </div>
         </div>
     </main>
 
