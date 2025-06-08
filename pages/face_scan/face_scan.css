@@ -1,0 +1,14 @@
+/* Custom CSS for face_scan page */
+/* The canvas overlay needs to be precisely positioned over the video element */
+#overlayCanvas {
+    /* Ensure it's transparent and pointers can go through to elements beneath if needed */
+    pointer-events: none;
+}
+
+/* Example to ensure video fills its container and maintains aspect ratio */
+#videoElement {
+    display: block; /* Removes extra space below video element */
+    width: 100%;
+    height: auto;
+    object-fit: cover; /* Ensures video covers the area without distortion, may crop */
+}

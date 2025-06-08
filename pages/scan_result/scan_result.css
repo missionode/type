@@ -1,0 +1,23 @@
+/* Custom CSS for scan_result page */
+
+/* Match status dot styling */
+.match-dot {
+    display: inline-block;
+    width: 10px;
+    height: 10px;
+    border-radius: 50%;
+    margin-right: 8px;
+    vertical-align: middle;
+}
+
+.match-dot.red {
+    background-color: #ef4444; /* Tailwind red-500 */
+}
+
+.match-dot.orange {
+    background-color: #f97316; /* Tailwind orange-500 */
+}
+
+.match-dot.green {
+    background-color: #22c55e; /* Tailwind green-500 */
+}

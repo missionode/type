@@ -1,0 +1,8 @@
+/* Custom CSS for upload_face page */
+/* No custom CSS specific to this page is strictly necessary with Tailwind for now,
+   but this file is here for any future overrides or additions. */
+
+/* Example: if you needed to override a Tailwind class for a specific element */
+/* #uploadedImagePreview {
+    border: 2px solid #ccc;
+} */

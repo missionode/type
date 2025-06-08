@@ -1,0 +1,9 @@
+/* Custom CSS for settings page (if needed) */
+/* This file is generally for overrides or specific layout tweaks not handled by Tailwind classes */
+
+/* Example: Ensuring full height for body if not fully achieved by Tailwind utilities */
+/* html, body {
+    height: 100%;
+} */
+
+/* You can add more specific styling here if Tailwind utility classes are not sufficient */
