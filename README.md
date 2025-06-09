@@ -1,5 +1,5 @@
 
-# Face Regegnisation Application ( Lakshana sastram )
+# Face Recognisation Application ( Lakshana sastram )
 
 ## Overview
 
